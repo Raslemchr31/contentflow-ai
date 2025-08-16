@@ -17,6 +17,7 @@ export class ContentGenerator {
           prompt,
           wordCount: request.wordCount || 1500,
           tone: request.tone || 'professional',
+          researchData: research,
         }),
       })
 
