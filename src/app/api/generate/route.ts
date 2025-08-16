@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
 
 export async function POST(request: NextRequest) {
   try {
     const { prompt, wordCount, tone, researchData } = await request.json()
 
-    // Use research data to generate content
-    const article = await generateContentFromResearch(prompt, wordCount, tone, researchData)
+    // Use Anthropic API to generate high-quality, SEO-optimized content
+    const article = await generateContentWithAnthropic(prompt, wordCount, tone, researchData)
 
     return NextResponse.json(article)
   } catch (error) {
@@ -15,6 +20,136 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+async function generateContentWithAnthropic(prompt: string, wordCount: number, tone: string, researchData: any) {
+  try {
+    const topic = extractMainTopic(prompt)
+    
+    // Create comprehensive prompt for Anthropic
+    const systemPrompt = `You are an expert content writer and SEO specialist. Your task is to create comprehensive, well-researched articles that are optimized for search engines and provide genuine value to readers.
+
+CONTENT REQUIREMENTS:
+- Write in ${tone} tone
+- Target approximately ${wordCount} words
+- Create SEO-optimized content with proper HTML structure
+- Use real data and insights from the provided research
+- Include compelling headlines and subheadings
+- Add relevant statistics and market data
+- Structure content for readability and engagement
+
+SEO OPTIMIZATION:
+- Include primary keyword naturally throughout content
+- Use header hierarchy (H1, H2, H3) properly
+- Write compelling meta descriptions
+- Include relevant internal linking opportunities
+- Optimize for featured snippets and voice search
+- Use semantic keywords and related terms
+
+RESEARCH INTEGRATION:
+- Base content on the provided research data and sources
+- Reference specific statistics and findings
+- Include quotes or insights from authoritative sources
+- Maintain factual accuracy and cite sources appropriately
+- Build narrative around real market intelligence
+
+OUTPUT FORMAT:
+- Return clean HTML content with proper semantic structure
+- Include CSS classes for styling (use Tailwind-friendly classes)
+- Structure with clear sections and logical flow
+- Add call-to-action elements where appropriate`
+
+    const userPrompt = `Create a comprehensive, SEO-optimized article about: ${topic}
+
+RESEARCH DATA TO USE:
+${researchData ? JSON.stringify(researchData, null, 2) : 'No specific research data provided - please use general knowledge and industry insights.'}
+
+ARTICLE SPECIFICATIONS:
+- Topic: ${topic}
+- Word Count: ${wordCount} words
+- Tone: ${tone}
+- Focus: Create actionable, valuable content that addresses user intent
+
+Please generate a complete article with:
+1. Compelling, SEO-optimized title
+2. Engaging introduction that hooks the reader
+3. Well-structured body content with multiple sections
+4. Data-driven insights and statistics
+5. Practical recommendations and takeaways
+6. Strong conclusion with clear next steps
+7. Meta description for SEO
+
+Make sure the content is original, valuable, and optimized for both search engines and human readers.`
+
+    const response = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 4000,
+      temperature: 0.7,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ]
+    })
+
+    const generatedContent = response.content[0]?.text || ''
+    
+    // Parse the generated content to extract title, content, and meta description
+    const parsedContent = parseGeneratedContent(generatedContent)
+
+    return {
+      title: parsedContent.title || generateFallbackTitle(topic),
+      content: parsedContent.content || generatedContent,
+      metaDescription: parsedContent.metaDescription || generateFallbackMetaDescription(topic),
+    }
+  } catch (error) {
+    console.error('Anthropic API error:', error)
+    
+    // Fallback to basic generation if Anthropic fails
+    return generateContentFromResearch(prompt, wordCount, tone, researchData)
+  }
+}
+
+function parseGeneratedContent(content: string) {
+  // Extract title, content, and meta description from generated content
+  const titleMatch = content.match(/<h1[^>]*>(.*?)<\/h1>/i) || content.match(/^#\s*(.+)/m)
+  const metaMatch = content.match(/Meta Description:\s*(.+)/i) || content.match(/Description:\s*(.+)/i)
+  
+  let title = ''
+  let metaDescription = ''
+  let mainContent = content
+
+  if (titleMatch) {
+    title = titleMatch[1].replace(/<[^>]*>/g, '').trim()
+  }
+
+  if (metaMatch) {
+    metaDescription = metaMatch[1].trim()
+    // Remove meta description line from content
+    mainContent = content.replace(metaMatch[0], '').trim()
+  }
+
+  // Clean up content and ensure proper HTML structure
+  if (!mainContent.includes('<h1>') && title) {
+    mainContent = `<h1>${title}</h1>\n\n${mainContent}`
+  }
+
+  return {
+    title,
+    content: mainContent,
+    metaDescription
+  }
+}
+
+function generateFallbackTitle(topic: string): string {
+  const currentYear = new Date().getFullYear()
+  return `${topic}: Comprehensive Analysis & Strategic Insights for ${currentYear}`
+}
+
+function generateFallbackMetaDescription(topic: string): string {
+  return `Expert analysis and strategic insights on ${topic}. Research-backed recommendations, market trends, and implementation strategies for business success.`
 }
 
 async function generateContentFromResearch(prompt: string, wordCount: number, tone: string, researchData: any) {
