@@ -85,7 +85,7 @@ export class ResearchEngine {
   private extractStatistics(content: string): string[] {
     const statRegex = /\d+[%]|\d+\.\d+[%]|\d{1,3}(,\d{3})*|\$\d+/g
     const matches = content.match(statRegex) || []
-    return [...new Set(matches)].slice(0, 5)
+    return Array.from(new Set(matches)).slice(0, 5)
   }
 
   private extractQuotes(content: string): string[] {
