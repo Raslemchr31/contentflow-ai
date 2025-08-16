@@ -53,41 +53,12 @@ export default function ContentFlowDashboard() {
 
     setIsGenerating(true)
     
-    const newRequest: GenerationRequest = {
-      id: `req-${Date.now()}`,
-      input,
-      type: inputType,
-      status: 'pending',
-      progress: 0,
-      createdAt: new Date(),
-    }
-
-    setRequests(prev => [newRequest, ...prev])
-
+    // Generate unique ID for this generation
+    const generationId = `gen-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
     try {
-      // Simulate progress updates
-      const updateProgress = (progress: number, status: GenerationRequest['status']) => {
-        setRequests(prev => prev.map(req => 
-          req.id === newRequest.id 
-            ? { ...req, progress, status }
-            : req
-        ))
-      }
-
-      updateProgress(10, 'researching')
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      updateProgress(40, 'researching')
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      updateProgress(70, 'generating')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      updateProgress(90, 'generating')
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Call the automation API
-      const response = await fetch('/api/automation', {
+      // Start the generation process
+      const response = await fetch(`/api/generation-progress/${generationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -102,34 +73,17 @@ export default function ContentFlowDashboard() {
       })
 
       if (response.ok) {
-        const result = await response.json()
-        updateProgress(100, 'completed')
-        
-        // Mock article data
-        const newArticle: GeneratedArticle = {
-          id: result.articleId,
-          title: `The Ultimate Guide to ${input}`,
-          content: `<h1>Generated article about ${input}</h1><p>This is a high-quality, SEO-optimized article...</p>`,
-          wordCount: wordCount,
-          seoScore: 85,
-          createdAt: new Date(),
-        }
-        
-        setArticles(prev => [newArticle, ...prev])
+        // Redirect to the progress page to show live automation
+        window.location.href = `/generate/${generationId}?input=${encodeURIComponent(input)}&type=${inputType}`
       } else {
-        updateProgress(0, 'error')
+        throw new Error('Failed to start generation')
       }
     } catch (error) {
-      setRequests(prev => prev.map(req => 
-        req.id === newRequest.id 
-          ? { ...req, status: 'error', progress: 0 }
-          : req
-      ))
+      console.error('Generation error:', error)
+      alert('Failed to start article generation. Please try again.')
     }
 
     setIsGenerating(false)
-    setInput('')
-    setKeywords('')
   }
 
   const getStatusIcon = (status: GenerationRequest['status']) => {
